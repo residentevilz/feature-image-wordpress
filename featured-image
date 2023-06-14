@@ -1,0 +1,42 @@
+// Add this code to your theme's functions.php file or a custom plugin
+
+// Function to set the first image as featured image
+function set_first_image_as_featured_image($post_ID) {
+    $post = get_post($post_ID);
+    $content = $post->post_content;
+
+    // Get the first image URL from the post content
+    preg_match('/<img.+src=[\'"]([^\'"]+)[\'"].*>/i', $content, $matches);
+    if (isset($matches[1])) {
+        $image_url = $matches[1];
+
+        // Upload the image and set it as the featured image
+        $upload_dir = wp_upload_dir();
+        $image_data = file_get_contents($image_url);
+        $filename = basename($image_url);
+        if (wp_mkdir_p($upload_dir['path'])) {
+            $file = $upload_dir['path'] . '/' . $filename;
+        } else {
+            $file = $upload_dir['basedir'] . '/' . $filename;
+        }
+        file_put_contents($file, $image_data);
+
+        $wp_filetype = wp_check_filetype($filename, null);
+        $attachment = array(
+            'post_mime_type' => $wp_filetype['type'],
+            'post_title' => sanitize_file_name($filename),
+            'post_content' => '',
+            'post_status' => 'inherit'
+        );
+        $attachment_id = wp_insert_attachment($attachment, $file, $post_ID);
+        if (!is_wp_error($attachment_id)) {
+            require_once(ABSPATH . 'wp-admin/includes/image.php');
+            $attachment_data = wp_generate_attachment_metadata($attachment_id, $file);
+            wp_update_attachment_metadata($attachment_id, $attachment_data);
+            set_post_thumbnail($post_ID, $attachment_id);
+        }
+    }
+}
+
+// Hook the function to the appropriate action
+add_action('save_post', 'set_first_image_as_featured_image');
